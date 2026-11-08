@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<title>Álvaro Gestión</title>
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#ffffff">
+<meta name="robots" content="noindex, nofollow">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" type="image/png" href="icon-192.png">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Álvaro">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<style>
+  html, body { margin: 0; height: 100%; background: #f5f5f2; font: 16px/1.45 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; color: #1e1e1c; }
+  #marco { position: fixed; inset: 0; width: 100%; height: 100%; border: 0; background: #f5f5f2; }
+  #aviso { position: fixed; inset: 0; display: none; align-items: center; justify-content: center; padding: 24px; text-align: center; background: #f5f5f2; }
+  #aviso.on { display: flex; }
+  #aviso div { max-width: 360px; }
+  #aviso img { width: 84px; height: 84px; border-radius: 20px; }
+  #aviso h1 { font-size: 20px; margin: 16px 0 8px; }
+  #aviso p { color: #6a6a64; margin: 0 0 12px; }
+  #sinred { position: fixed; left: 0; right: 0; bottom: 0; display: none; padding: 10px 16px; background: #8a5700; color: #fff; text-align: center; font-size: 14px; z-index: 5; }
+  #sinred.on { display: block; }
+</style>
+</head>
+<body>
+<iframe id="marco" title="Álvaro Gestión" allow="camera; microphone; geolocation; clipboard-write; fullscreen" hidden></iframe>
+<div id="aviso">
+  <div>
+    <img src="icon-192.png" alt="">
+    <h1>Álvaro Gestión</h1>
+    <p>Para entrar, abre una vez el enlace personal que te ha dado Álvaro. Después la app te recordará.</p>
+    <p>Si ya lo hiciste y ves esto, vuelve a abrir tu enlace personal.</p>
+  </div>
+</div>
+<div id="sinred">Sin conexión a internet</div>
+
+<script>
+(function () {
+  // Dirección del programa en Google. Es la misma que ya usan los enlaces actuales.
+  var EXEC = 'https://script.google.com/macros/s/AKfycbzOgZdq7pV6OIXRRdo5kysBSlOoNETk1HRFEvzsxD7jVkszMCOo_XsVrZiXGoJMEX17Cg/exec';
+  var TOKEN_RE = /^[A-Za-z0-9]{16,128}$/;
+  var CLAVE = 'alvaro_gestion_t';
+
+  function leer() { try { return localStorage.getItem(CLAVE) || ''; } catch (_) { return ''; } }
+  function guardar(v) { try { localStorage.setItem(CLAVE, v); } catch (_) {} }
+
+  var p = new URLSearchParams(location.search);
+  var t = p.get('t') || '';
+  var m = p.get('m') || '';
+  if (!TOKEN_RE.test(t)) t = '';
+  if (!/^[A-Za-z0-9_-]{1,64}$/.test(m)) m = '';
+
+  if (t) guardar(t); else t = leer();
+
+  // Deja el enlace personal en la barra de direcciones (en iPhone, "Añadir a pantalla de inicio" lo recuerda así).
+  if (t && !p.get('t')) {
+    try { history.replaceState(null, '', location.pathname + '?t=' + t + (m ? '&m=' + m : '')); } catch (_) {}
+  }
+
+  if (!TOKEN_RE.test(t)) {
+    document.getElementById('aviso').className = 'on';
+  } else {
+    var marco = document.getElementById('marco');
+    marco.src = EXEC + '?t=' + t + (m ? '&m=' + m : '');
+    marco.hidden = false;
+  }
+
+  function red() { document.getElementById('sinred').className = navigator.onLine ? '' : 'on'; }
+  addEventListener('online', red); addEventListener('offline', red); red();
+
+  if ('serviceWorker' in navigator) {
+    addEventListener('load', function () { navigator.serviceWorker.register('sw.js').catch(function () {}); });
+  }
+})();
+</script>
+</body>
+</html>
