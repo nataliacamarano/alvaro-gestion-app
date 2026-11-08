@@ -69,6 +69,14 @@
     marco.hidden = false;
   }
 
+  // El programa pide recargarse cuando hay una versión nueva ("Toca aquí para actualizar").
+  addEventListener('message', function (ev) {
+    if (ev.data === 'ag-recargar' && TOKEN_RE.test(t)) {
+      var marco2 = document.getElementById('marco');
+      marco2.src = EXEC + '?t=' + t + (m ? '&m=' + m : '') + '&r=' + Date.now();
+    }
+  });
+
   function red() { document.getElementById('sinred').className = navigator.onLine ? '' : 'on'; }
   addEventListener('online', red); addEventListener('offline', red); red();
 
