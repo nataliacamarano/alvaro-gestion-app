@@ -16,12 +16,16 @@
 <style>
   html, body { margin: 0; height: 100%; background: #f5f5f2; font: 16px/1.45 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; color: #1e1e1c; }
   #marco { position: fixed; inset: 0; width: 100%; height: 100%; border: 0; background: #f5f5f2; }
-  #aviso { position: fixed; inset: 0; display: none; align-items: center; justify-content: center; padding: 24px; text-align: center; background: #f5f5f2; }
+  #aviso { position: fixed; inset: 0; display: none; align-items: center; justify-content: center; padding: 24px; text-align: center; background: #f5f5f2; overflow-y: auto; }
   #aviso.on { display: flex; }
-  #aviso div { max-width: 360px; }
+  #aviso .caja { width: 100%; max-width: 360px; }
   #aviso img { width: 84px; height: 84px; border-radius: 20px; }
   #aviso h1 { font-size: 20px; margin: 16px 0 8px; }
   #aviso p { color: #6a6a64; margin: 0 0 12px; }
+  #aviso input { width: 100%; box-sizing: border-box; font: inherit; font-size: 16px; padding: 12px; border: 1px solid #cfcdc5; border-radius: 10px; background: #fff; color: #1e1e1c; }
+  #aviso input:focus { outline: 2px solid #1b5fb0; border-color: #1b5fb0; }
+  #aviso button { width: 100%; margin-top: 12px; padding: 13px; border: 0; border-radius: 12px; background: #1b5fb0; color: #fff; font: inherit; font-size: 16px; font-weight: 600; cursor: pointer; }
+  #error { color: #b3261e; min-height: 20px; margin: 10px 0 0; font-size: 14px; }
   #sinred { position: fixed; left: 0; right: 0; bottom: 0; display: none; padding: 10px 16px; background: #8a5700; color: #fff; text-align: center; font-size: 14px; z-index: 5; }
   #sinred.on { display: block; }
 </style>
@@ -29,12 +33,14 @@
 <body>
 <iframe id="marco" title="Álvaro Gestión" allow="camera; microphone; geolocation; clipboard-write; fullscreen" hidden></iframe>
 <div id="aviso">
-  <div>
+  <form class="caja" id="form" autocomplete="off">
     <img src="icon-192.png" alt="">
     <h1>Álvaro Gestión</h1>
-    <p>Para entrar, abre una vez el enlace personal que te ha dado Álvaro. Después la app te recordará.</p>
-    <p>Si ya lo hiciste y ves esto, vuelve a abrir tu enlace personal.</p>
-  </div>
+    <p>Pega aquí el enlace personal que te envió Álvaro y toca <b>Entrar</b>. Solo hace falta la primera vez.</p>
+    <input id="enlace" type="text" inputmode="url" autocapitalize="none" autocorrect="off" spellcheck="false" placeholder="Pega tu enlace personal" aria-label="Enlace personal">
+    <div id="error" role="alert"></div>
+    <button type="submit">Entrar</button>
+  </form>
 </div>
 <div id="sinred">Sin conexión a internet</div>
 
@@ -44,9 +50,11 @@
   var EXEC = 'https://script.google.com/macros/s/AKfycbzOgZdq7pV6OIXRRdo5kysBSlOoNETk1HRFEvzsxD7jVkszMCOo_XsVrZiXGoJMEX17Cg/exec';
   var TOKEN_RE = /^[A-Za-z0-9]{16,128}$/;
   var CLAVE = 'alvaro_gestion_t';
+  var $ = function (id) { return document.getElementById(id); };
 
   function leer() { try { return localStorage.getItem(CLAVE) || ''; } catch (_) { return ''; } }
   function guardar(v) { try { localStorage.setItem(CLAVE, v); } catch (_) {} }
+  function borrar() { try { localStorage.removeItem(CLAVE); } catch (_) {} }
 
   var p = new URLSearchParams(location.search);
   var t = p.get('t') || '';
@@ -56,28 +64,58 @@
 
   if (t) guardar(t); else t = leer();
 
-  // Deja el enlace personal en la barra de direcciones (en iPhone, "Añadir a pantalla de inicio" lo recuerda así).
-  if (t && !p.get('t')) {
-    try { history.replaceState(null, '', location.pathname + '?t=' + t + (m ? '&m=' + m : '')); } catch (_) {}
-  }
+  function urlPrograma(extra) { return EXEC + '?t=' + t + (m ? '&m=' + m : '') + (extra || ''); }
 
-  if (!TOKEN_RE.test(t)) {
-    document.getElementById('aviso').className = 'on';
-  } else {
-    var marco = document.getElementById('marco');
-    marco.src = EXEC + '?t=' + t + (m ? '&m=' + m : '');
+  function abrir() {
+    // Deja el enlace personal en la barra de direcciones (en iPhone, "Añadir a pantalla de inicio" lo recuerda así).
+    try { history.replaceState(null, '', location.pathname + '?t=' + t + (m ? '&m=' + m : '')); } catch (_) {}
+    $('aviso').className = '';
+    var marco = $('marco');
+    marco.src = urlPrograma();
     marco.hidden = false;
   }
 
-  // El programa pide recargarse cuando hay una versión nueva ("Toca aquí para actualizar").
+  function pedirEnlace(mensaje) {
+    var marco = $('marco');
+    marco.hidden = true;
+    marco.removeAttribute('src');
+    $('error').textContent = mensaje || '';
+    $('aviso').className = 'on';
+  }
+
+  // De lo que pegue la persona (enlace entero, con o sin "https://", o solo la clave) saca la clave.
+  function sacarClave(texto) {
+    texto = String(texto || '').trim();
+    var r = /[?&]t=([A-Za-z0-9]{16,128})(?![A-Za-z0-9])/.exec(texto);
+    if (r) return r[1];
+    if (TOKEN_RE.test(texto)) return texto;
+    return '';
+  }
+
+  $('form').addEventListener('submit', function (ev) {
+    ev.preventDefault();
+    var k = sacarClave($('enlace').value);
+    if (!k) { $('error').textContent = 'Ese enlace no parece correcto. Cópialo entero desde el mensaje de Álvaro y vuelve a pegarlo.'; return; }
+    t = k; guardar(t); $('enlace').value = ''; $('error').textContent = '';
+    abrir();
+  });
+
+  if (TOKEN_RE.test(t)) abrir(); else pedirEnlace('');
+
+  // Mensajes que manda el programa desde dentro.
   addEventListener('message', function (ev) {
     if (ev.data === 'ag-recargar' && TOKEN_RE.test(t)) {
-      var marco2 = document.getElementById('marco');
-      marco2.src = EXEC + '?t=' + t + (m ? '&m=' + m : '') + '&r=' + Date.now();
+      // Hay una versión nueva ("Toca aquí para actualizar").
+      $('marco').src = urlPrograma('&r=' + Date.now());
+    } else if (ev.data === 'ag-enlace-invalido') {
+      // El programa no reconoce el enlace (cambiado o dado de baja): se olvida y se pide otro.
+      borrar(); t = '';
+      try { history.replaceState(null, '', location.pathname); } catch (_) {}
+      pedirEnlace('Ese enlace ya no es válido. Pide uno nuevo a Álvaro y pégalo aquí.');
     }
   });
 
-  function red() { document.getElementById('sinred').className = navigator.onLine ? '' : 'on'; }
+  function red() { $('sinred').className = navigator.onLine ? '' : 'on'; }
   addEventListener('online', red); addEventListener('offline', red); red();
 
   if ('serviceWorker' in navigator) {
